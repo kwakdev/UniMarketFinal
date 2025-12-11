@@ -31,13 +31,14 @@ type StartPageProps = {
   currentUserId: string;
   onUserChange: (userId: string) => void;
   onStartConversation: (conversationId: string) => void;
+  initialTargetUserId?: string | null;
 };
 
-export function StartPage({ currentUserId, onUserChange, onStartConversation }: StartPageProps) {
+export function StartPage({ currentUserId, onUserChange, onStartConversation, initialTargetUserId }: StartPageProps) {
   const [showAddUser, setShowAddUser] = useState(false);
   const [showStartConversation, setShowStartConversation] = useState(false);
   const [allUsers, setAllUsers] = useState<User[]>([]);
-  const [selectedUserId, setSelectedUserId] = useState<string>("");
+  const [targetUserId, setTargetUserId] = useState<string>(initialTargetUserId || "");
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [addingUser, setAddingUser] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -116,12 +117,12 @@ export function StartPage({ currentUserId, onUserChange, onStartConversation }: 
   };
 
   const handleStartConversation = async () => {
-    if (!selectedUserId) {
-      setError("Please select a user to start a conversation with");
+    if (!targetUserId.trim()) {
+      setError("Please select or enter a user to start a conversation with");
       return;
     }
 
-    if (selectedUserId === currentUserId) {
+    if (targetUserId === currentUserId) {
       setError("Cannot start a conversation with yourself");
       return;
     }
@@ -130,14 +131,14 @@ export function StartPage({ currentUserId, onUserChange, onStartConversation }: 
 
     try {
       // Create a conversation ID (combine user IDs in sorted order for consistency)
-      const userIds = [currentUserId, selectedUserId].sort();
+      const userIds = [currentUserId, targetUserId].sort();
       const conversationId = `conv-${userIds[0]}-${userIds[1]}`;
 
       // Create conversation with both users as participants
       await apiClient.createConversation({
         conversationId,
         type: 1, // Direct message
-        participantIds: [selectedUserId],
+        participantIds: [targetUserId],
       });
 
       // Navigate to conversation
@@ -155,15 +156,26 @@ export function StartPage({ currentUserId, onUserChange, onStartConversation }: 
     loadUsersForDropdown();
   }, [currentUserId]);
 
+  // Auto-open start conversation when a target user is provided (e.g., from a listing link)
+  useEffect(() => {
+    if (initialTargetUserId) {
+      setShowStartConversation(true);
+      setTargetUserId(initialTargetUserId);
+    }
+  }, [initialTargetUserId]);
+
   // Load users when "Start Conversation" is opened
   useEffect(() => {
     if (showStartConversation) {
       loadAllUsers();
+      if (initialTargetUserId) {
+        setTargetUserId(initialTargetUserId);
+      }
     } else {
-      setSelectedUserId("");
+      setTargetUserId("");
       setAllUsers([]);
     }
-  }, [showStartConversation, currentUserId]);
+  }, [showStartConversation, currentUserId, initialTargetUserId]);
 
   const formatRelativeTime = (dateString: string) => {
     const date = new Date(dateString);
@@ -275,7 +287,7 @@ export function StartPage({ currentUserId, onUserChange, onStartConversation }: 
               setShowStartConversation(true);
               setShowAddUser(false);
               setError(null);
-              setSelectedUserId("");
+              setTargetUserId(initialTargetUserId || "");
             }}
             className="bg-purple-500 hover:bg-purple-600 text-white font-semibold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:scale-105 flex items-center justify-center gap-2"
           >
@@ -381,6 +393,12 @@ export function StartPage({ currentUserId, onUserChange, onStartConversation }: 
           <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-200">
             <h2 className="text-2xl font-bold text-gray-900 mb-4">Select User to Chat With</h2>
 
+            {initialTargetUserId && (
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+                Ready to message poster <span className="font-semibold">{initialTargetUserId}</span>. Choose them below or adjust the user ID.
+              </div>
+            )}
+
             {loadingUsers ? (
               <div className="text-center py-8 text-gray-500">
                 <div className="text-4xl mb-2 animate-pulse">⏳</div>
@@ -401,8 +419,8 @@ export function StartPage({ currentUserId, onUserChange, onStartConversation }: 
                     Select a user
                   </label>
                   <select
-                    value={selectedUserId}
-                    onChange={(e) => setSelectedUserId(e.target.value)}
+                    value={targetUserId}
+                    onChange={(e) => setTargetUserId(e.target.value)}
                     className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white text-gray-900 font-medium cursor-pointer transition-colors"
                   >
                     <option value="">-- Choose a user --</option>
@@ -414,24 +432,47 @@ export function StartPage({ currentUserId, onUserChange, onStartConversation }: 
                   </select>
                 </div>
 
-                {selectedUserId && (
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Message a user by ID (poster, buyer, etc.)
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={targetUserId}
+                      onChange={(e) => setTargetUserId(e.target.value)}
+                      placeholder="e.g. user-789"
+                      className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white text-gray-900"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleStartConversation}
+                      className="px-4 py-3 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-lg transition-colors"
+                    >
+                      Message
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">Paste a poster's user ID from a listing to start chatting instantly.</p>
+                </div>
+
+                {targetUserId && (
                   <div className="mb-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-12 bg-purple-500 rounded-full flex items-center justify-center text-white font-semibold text-lg">
-                        {allUsers.find(u => u.id === selectedUserId)?.displayName?.[0] || 
-                         allUsers.find(u => u.id === selectedUserId)?.username[0] || "?"}
+                        {allUsers.find(u => u.id === targetUserId)?.displayName?.[0] ||
+                         allUsers.find(u => u.id === targetUserId)?.username?.[0] || targetUserId[0] || "?"}
                       </div>
                       <div className="flex-1">
                         <div className="font-semibold text-gray-900">
-                          {allUsers.find(u => u.id === selectedUserId)?.displayName || 
-                           allUsers.find(u => u.id === selectedUserId)?.username}
+                          {allUsers.find(u => u.id === targetUserId)?.displayName ||
+                           allUsers.find(u => u.id === targetUserId)?.username || targetUserId}
                         </div>
                         <div className="text-sm text-gray-600">
-                          @{allUsers.find(u => u.id === selectedUserId)?.username}
+                          @{allUsers.find(u => u.id === targetUserId)?.username || targetUserId}
                         </div>
-                        {allUsers.find(u => u.id === selectedUserId)?.email && (
+                        {allUsers.find(u => u.id === targetUserId)?.email && (
                           <div className="text-xs text-gray-500 mt-1">
-                            {allUsers.find(u => u.id === selectedUserId)?.email}
+                            {allUsers.find(u => u.id === targetUserId)?.email}
                           </div>
                         )}
                       </div>
@@ -442,7 +483,7 @@ export function StartPage({ currentUserId, onUserChange, onStartConversation }: 
                 <div className="flex gap-3">
                   <button
                     onClick={handleStartConversation}
-                    disabled={!selectedUserId}
+                    disabled={!targetUserId}
                     className="flex-1 bg-purple-500 hover:bg-purple-600 text-white font-semibold py-3 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-purple-500"
                   >
                     Start Conversation
@@ -450,7 +491,7 @@ export function StartPage({ currentUserId, onUserChange, onStartConversation }: 
                   <button
                     onClick={() => {
                       setShowStartConversation(false);
-                      setSelectedUserId("");
+                      setTargetUserId("");
                       setError(null);
                     }}
                     className="px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors"

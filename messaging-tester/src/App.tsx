@@ -7,6 +7,11 @@ function App() {
   // Get user ID from URL parameter or default to user-123
   // Usage: http://localhost:5173?userId=user-456
   const urlParams = new URLSearchParams(window.location.search);
+  const initialTargetUserId =
+    urlParams.get('posterId') ||
+    urlParams.get('targetUserId') ||
+    urlParams.get('recipientId') ||
+    null;
   const [currentUserId, setCurrentUserId] = useState(
     urlParams.get('userId') || localStorage.getItem('currentUserId') || "user-123"
   );
@@ -116,6 +121,7 @@ function App() {
       <StartPage
         key={`start-${currentUserId}`}
         currentUserId={currentUserId}
+        initialTargetUserId={initialTargetUserId}
         onUserChange={(userId) => {
           setCurrentUserId(userId);
           // Update URL without reload
@@ -129,6 +135,9 @@ function App() {
           const newUrl = new URL(window.location.href);
           newUrl.searchParams.set('conversationId', convId);
           newUrl.searchParams.set('userId', currentUserId);
+          newUrl.searchParams.delete('posterId');
+          newUrl.searchParams.delete('targetUserId');
+          newUrl.searchParams.delete('recipientId');
           window.history.pushState({}, '', newUrl);
         }}
       />
